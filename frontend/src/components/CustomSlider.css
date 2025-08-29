@@ -1,0 +1,47 @@
+/* Custom slider styling */
+.custom-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--thumb-color, #007bff);
+  border: var(--thumb-border, 2px solid white);
+  box-shadow: var(--thumb-shadow, 0 0 3px rgba(0,0,0,0.3));
+  cursor: pointer;
+}
+
+.custom-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--thumb-color, #007bff);
+  border: var(--thumb-border, 2px solid white);
+  box-shadow: var(--thumb-shadow, 0 0 3px rgba(0,0,0,0.3));
+  cursor: pointer;
+}
+
+.custom-range::-ms-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--thumb-color, #007bff);
+  border: var(--thumb-border, 2px solid white);
+  box-shadow: var(--thumb-shadow, 0 0 3px rgba(0,0,0,0.3));
+  cursor: pointer;
+}
+
+/* Remove the default track styling */
+.custom-range::-webkit-slider-runnable-track {
+  background: transparent;
+}
+
+.custom-range::-moz-range-track {
+  background: transparent;
+}
+
+.custom-range::-ms-track {
+  background: transparent;
+  border-color: transparent;
+  color: transparent;
+}
