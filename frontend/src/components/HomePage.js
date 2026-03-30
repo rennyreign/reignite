@@ -9,6 +9,7 @@ import {
 import {
   MessageCircle, Brain, Activity, Heart, Users, Star, Palette, Wrench,
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, CategoryScale, LinearScale);
 
@@ -111,6 +112,8 @@ const card = {
 };
 
 const HomePage = () => {
+  const { user } = useAuth();
+  const ctaPath = user ? '/dashboard' : '/login';
   return (
     <Box sx={{ background: '#F5F3EF', minHeight: '100vh' }}>
 
@@ -138,7 +141,7 @@ const HomePage = () => {
         </Typography>
         <Button
           component={Link}
-          to="/dashboard"
+          to={ctaPath}
           sx={{
             fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.95rem',
             textTransform: 'none', background: '#3D7A5F', color: '#fff',
@@ -148,7 +151,7 @@ const HomePage = () => {
             '&:active': { transform: 'translateY(1px)' },
           }}
         >
-          Start Your First Check-in
+          {user ? 'Go to Dashboard' : 'Get Started Free'}
         </Button>
       </Box>
 
@@ -380,7 +383,7 @@ const HomePage = () => {
         </Typography>
         <Button
           component={Link}
-          to="/dashboard"
+          to={ctaPath}
           sx={{
             fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '1rem',
             textTransform: 'none', background: '#3D7A5F', color: '#fff',
@@ -390,13 +393,13 @@ const HomePage = () => {
             '&:active': { transform: 'translateY(1px)' },
           }}
         >
-          Start Your First Check-in
+          {user ? 'Go to Dashboard' : 'Get Started Free'}
         </Button>
         <Typography sx={{
           fontFamily: 'Outfit, sans-serif', fontSize: '0.75rem',
           color: '#A8A29E', mt: 2,
         }}>
-          Free. No account required.
+          Free. Takes 30 seconds to set up.
         </Typography>
       </Box>
 

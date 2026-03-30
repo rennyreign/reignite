@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Typography, Button, TextField } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -468,6 +468,8 @@ function ScoreSlider({ subCapability, value, onChange, note, onNoteChange }) {
 const NewCheckin = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isOnboarding = searchParams.get('onboarding') === 'true';
 
   const [child, setChild] = useState(null);
   const [areas, setAreas] = useState([]);
@@ -540,7 +542,11 @@ const NewCheckin = () => {
         durationSeconds,
       });
 
-      navigate(`/students/${id}`);
+      if (isOnboarding) {
+        navigate(`/onboarding/reminders/${id}`, { replace: true });
+      } else {
+        navigate(`/students/${id}`);
+      }
     } catch (err) {
       setError(err.message);
       setSaving(false);

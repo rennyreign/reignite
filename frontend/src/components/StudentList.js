@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Box, Typography, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -51,14 +51,28 @@ const SS = {
 };
 
 const StudentList = () => {
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     studentService.getAll()
-      .then(setStudents)
-      .catch((err) => setError(err.message));
-  }, []);
+      .then((data) => {
+        if (data.length === 0) {
+          navigate('/onboarding', { replace: true });
+          return;
+        }
+        setStudents(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [navigate]);
+
+  if (loading && !error) return null;
 
   if (error) {
     return (
@@ -90,10 +104,10 @@ const StudentList = () => {
               lineHeight: 1.2,
             }}
           >
-            Student Profiles
+            Your Children
           </Typography>
           <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', color: '#78716C', mt: 0.5 }}>
-            {students.length} {students.length === 1 ? 'student' : 'students'} tracked
+            {students.length} {students.length === 1 ? 'child' : 'children'} tracked
           </Typography>
         </Box>
         <Button
@@ -115,7 +129,7 @@ const StudentList = () => {
             '&:active': { transform: 'translateY(1px)' },
           }}
         >
-          Add Student
+          Add Child
         </Button>
       </Box>
 

@@ -22,7 +22,7 @@ export const studentService = {
     return data;
   },
 
-  create: async ({ name, date_of_birth, imageFile }) => {
+  create: async ({ name, date_of_birth, imageFile, user_id }) => {
     let profile_image_url = null;
 
     if (imageFile) {
@@ -31,7 +31,7 @@ export const studentService = {
 
     const { data, error } = await supabase
       .from('students')
-      .insert([{ name, date_of_birth: date_of_birth || null, profile_image_url }])
+      .insert([{ name, date_of_birth: date_of_birth || null, profile_image_url, user_id }])
       .select()
       .single();
     if (error) throw new Error(error.message);
@@ -146,6 +146,33 @@ export const statisticsService = {
       assessment_count: assessments.length,
       trend_data,
     };
+  },
+};
+
+// ─── Reminder Service ─────────────────────────────────────────────────────────
+
+export const reminderService = {
+  getByChild: async (childId) => {
+    const { data, error } = await supabase
+      .from('reminder_settings')
+      .select('*')
+      .eq('child_id', childId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  upsert: async ({ user_id, child_id, interval_days, is_active, next_reminder_at }) => {
+    const { data, error } = await supabase
+      .from('reminder_settings')
+      .upsert(
+        { user_id, child_id, interval_days, is_active, next_reminder_at, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,child_id' }
+      )
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
   },
 };
 

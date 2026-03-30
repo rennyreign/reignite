@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Box,
@@ -14,8 +14,13 @@ import {
   ListItemButton,
   ListItemText,
   Divider,
+  Avatar,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import { LogOut } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const NAV_ITEMS = [
   { name: 'Home', path: '/' },
@@ -24,8 +29,17 @@ const NAV_ITEMS = [
 
 const Header = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
   const isActive = (path) => location.pathname === path;
+
+  const handleSignOut = async () => {
+    setAnchorEl(null);
+    await signOut();
+    navigate('/');
+  };
 
   const drawer = (
     <Box onClick={() => setMobileOpen(false)} sx={{ width: 260 }}>
@@ -161,26 +175,80 @@ const Header = () => {
                   {item.name}
                 </Button>
               ))}
-              <Button
-                component={Link}
-                to="/students/new"
-                sx={{
-                  ml: 1,
-                  fontFamily: 'Outfit, sans-serif',
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  textTransform: 'none',
-                  background: '#3D7A5F',
-                  color: '#fff',
-                  borderRadius: '10px',
-                  px: 2.5,
-                  py: 0.9,
-                  '&:hover': { background: '#2d5f49' },
-                  '&:active': { transform: 'translateY(1px)' },
-                }}
-              >
-                New Assessment
-              </Button>
+              {user && (
+                <>
+                  <Button
+                    component={Link}
+                    to="/students/new"
+                    sx={{
+                      ml: 1,
+                      fontFamily: 'Outfit, sans-serif',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      textTransform: 'none',
+                      background: '#3D7A5F',
+                      color: '#fff',
+                      borderRadius: '10px',
+                      px: 2.5,
+                      py: 0.9,
+                      '&:hover': { background: '#2d5f49' },
+                      '&:active': { transform: 'translateY(1px)' },
+                    }}
+                  >
+                    Add Child
+                  </Button>
+                  <IconButton
+                    onClick={(e) => setAnchorEl(e.currentTarget)}
+                    sx={{ ml: 1 }}
+                  >
+                    <Avatar
+                      src={user.user_metadata?.avatar_url}
+                      sx={{ width: 32, height: 32, bgcolor: '#3D7A5F', fontSize: '0.8rem', fontFamily: 'Outfit' }}
+                    >
+                      {(user.user_metadata?.full_name || user.email || '?')[0].toUpperCase()}
+                    </Avatar>
+                  </IconButton>
+                  <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={() => setAnchorEl(null)}
+                    PaperProps={{ sx: { borderRadius: '12px', border: '1px solid #E7E5E4', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', minWidth: 180, mt: 1 } }}
+                  >
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #E7E5E4' }}>
+                      <Typography sx={{ fontFamily: 'Outfit', fontWeight: 600, fontSize: '0.85rem', color: '#1C1917' }}>
+                        {user.user_metadata?.full_name || 'User'}
+                      </Typography>
+                      <Typography sx={{ fontFamily: 'Outfit', fontSize: '0.72rem', color: '#78716C' }}>
+                        {user.email}
+                      </Typography>
+                    </Box>
+                    <MenuItem onClick={handleSignOut} sx={{ fontFamily: 'Outfit', fontSize: '0.85rem', color: '#DC2626', gap: 1, py: 1.2 }}>
+                      <LogOut size={16} /> Sign out
+                    </MenuItem>
+                  </Menu>
+                </>
+              )}
+              {!user && (
+                <Button
+                  component={Link}
+                  to="/login"
+                  sx={{
+                    ml: 1,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    textTransform: 'none',
+                    background: '#3D7A5F',
+                    color: '#fff',
+                    borderRadius: '10px',
+                    px: 2.5,
+                    py: 0.9,
+                    '&:hover': { background: '#2d5f49' },
+                  }}
+                >
+                  Sign In
+                </Button>
+              )}
             </Box>
           </Toolbar>
         </Container>

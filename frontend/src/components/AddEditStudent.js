@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, Button, TextField } from '@mui/material';
 import { studentService } from '../services/supabaseService';
 import { calculateAge, getAgeBracket, getAgeBracketLabel } from '../services/v2Service';
+import { useAuth } from '../contexts/AuthContext';
 
 const fieldLabel = {
   fontFamily: 'Outfit, sans-serif',
@@ -31,6 +32,7 @@ const inputSx = {
 const AddEditStudent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const isEditing = !!id;
 
   const [formData, setFormData] = useState({ name: '', date_of_birth: '', profile_image_url: null });
@@ -75,7 +77,7 @@ const AddEditStudent = () => {
       if (isEditing) {
         await studentService.update(id, { ...formData, imageFile });
       } else {
-        await studentService.create({ ...formData, imageFile });
+        await studentService.create({ ...formData, imageFile, user_id: user.id });
       }
       window.location.href = '/dashboard';
     } catch (err) {
@@ -95,10 +97,10 @@ const AddEditStudent = () => {
   return (
     <Box sx={{ maxWidth: 520, mx: 'auto', px: 3, pt: 4, pb: 8 }}>
       <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.75rem', color: '#1C1917', letterSpacing: '-0.025em', mb: 0.5 }}>
-        {isEditing ? 'Edit Student' : 'Add Student'}
+        {isEditing ? 'Edit Profile' : 'Add Child'}
       </Typography>
       <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#78716C', mb: 4 }}>
-        {isEditing ? 'Update the student profile details.' : 'Fill in the details to create a new student profile.'}
+        {isEditing ? 'Update the profile details.' : 'Fill in the details to create a new child profile.'}
       </Typography>
 
       {error && (
