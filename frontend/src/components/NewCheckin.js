@@ -5,6 +5,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { studentService } from '../services/supabaseService';
 import { capabilityAreasService, checkinsService } from '../services/v2Service';
+import { getIconComponent } from '../utils/iconMapping';
 
 const scoreColor = (score) => {
   if (score >= 8) return '#3D7A5F';
@@ -591,7 +592,9 @@ const NewCheckin = () => {
             Area {currentAreaIndex + 1} of {areas.length}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography sx={{ fontSize: '2.5rem', lineHeight: 1 }}>{currentArea.icon}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {React.createElement(getIconComponent(currentArea.icon), { size: 32, strokeWidth: 1.5, color: '#3D7A5F' })}
+            </Box>
             <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.5rem', color: '#1C1917', letterSpacing: '-0.02em' }}>
               {currentArea.name}
             </Typography>

@@ -8,6 +8,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { studentService } from '../services/supabaseService';
 import { statisticsService as v2StatisticsService, calculateAge, getAgeBracket, getAgeBracketLabel, capabilityAreasService } from '../services/v2Service';
 import { formatDate } from '../utils/dateFormatter';
+import { getIconComponent } from '../utils/iconMapping';
 
 const scoreColor = (score) => {
   if (score >= 8) return '#3D7A5F';
@@ -205,7 +206,9 @@ const StudentProfile = () => {
               <Box key={area.id} sx={card}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography sx={{ fontSize: '1.2rem' }}>{area.icon}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      {React.createElement(getIconComponent(area.icon), { size: 20, strokeWidth: 1.5, color: '#3D7A5F' })}
+                    </Box>
                     <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.95rem', color: '#1C1917' }}>
                       {area.name}
                     </Typography>
