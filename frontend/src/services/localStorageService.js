@@ -354,4 +354,4 @@ const loadSampleData = () => {
 // Load sample data
 loadSampleData();
 
-export { studentService, assessmentService, statisticsService };
+// Migrated to supabaseService.js — exports removed to avoid name collision

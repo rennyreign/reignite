@@ -1,213 +1,217 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Button, Container, Alert } from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
-import { studentService } from '../services/localStorageService';
+import { Box, Typography, Button, TextField } from '@mui/material';
+import { studentService } from '../services/supabaseService';
+import { calculateAge, getAgeBracket, getAgeBracketLabel } from '../services/v2Service';
+
+const fieldLabel = {
+  fontFamily: 'Outfit, sans-serif',
+  fontSize: '0.78rem',
+  fontWeight: 600,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  color: '#78716C',
+  mb: 0.8,
+  display: 'block',
+};
+
+const inputSx = {
+  '& .MuiOutlinedInput-root': {
+    fontFamily: 'Outfit, sans-serif',
+    fontSize: '0.95rem',
+    borderRadius: '10px',
+    background: '#FFFFFF',
+    '& fieldset': { borderColor: '#E7E5E4', borderWidth: '1.5px' },
+    '&:hover fieldset': { borderColor: '#78716C' },
+    '&.Mui-focused fieldset': { borderColor: '#3D7A5F', boxShadow: '0 0 0 3px rgba(61,122,95,0.12)' },
+  },
+  '& .MuiFormHelperText-root': { fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem' },
+};
 
 const AddEditStudent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = !!id;
 
-  const [formData, setFormData] = useState({
-    name: '',
-    date_of_birth: '',
-    profile_image: null
-  });
-  const [loading, setLoading] = useState(isEditing);
-  const [error, setError] = useState(null);
+  const [formData, setFormData] = useState({ name: '', date_of_birth: '', profile_image_url: null });
   const [imagePreview, setImagePreview] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // If editing, fetch the student data from local storage
     if (isEditing) {
-      try {
-        console.log('Fetching student data for editing, ID:', id);
-        const student = studentService.getById(id);
-        
-        if (!student) {
-          setError(`Student with ID ${id} not found`);
-          setLoading(false);
-          return;
-        }
-        
+      studentService.getById(id).then((student) => {
+        if (!student) { setError('Student not found'); return; }
         setFormData({
           name: student.name,
           date_of_birth: student.date_of_birth ? student.date_of_birth.split('T')[0] : '',
-          profile_image: student.profile_image
+          profile_image_url: student.profile_image_url,
         });
-        
-        if (student.profile_image) {
-          setImagePreview(student.profile_image);
-        }
-        
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching student data:', err);
-        setError(`Failed to fetch student data: ${err.message}`);
-        setLoading(false);
-      }
+        if (student.profile_image_url) setImagePreview(student.profile_image_url);
+      }).catch((err) => setError(err.message));
     }
   }, [id, isEditing]);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-  };
-
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Compress and resize the image before storing
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // Create an image element to resize
-        const img = new Image();
-        img.onload = () => {
-          // Create a canvas to resize the image
-          const canvas = document.createElement('canvas');
-          
-          // Calculate new dimensions (max 300px width/height)
-          const MAX_SIZE = 300;
-          let width = img.width;
-          let height = img.height;
-          
-          if (width > height) {
-            if (width > MAX_SIZE) {
-              height = Math.round(height * (MAX_SIZE / width));
-              width = MAX_SIZE;
-            }
-          } else {
-            if (height > MAX_SIZE) {
-              width = Math.round(width * (MAX_SIZE / height));
-              height = MAX_SIZE;
-            }
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
-          
-          // Draw resized image on canvas
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          // Convert to compressed JPEG format with reduced quality
-          const compressedImage = canvas.toDataURL('image/jpeg', 0.7);
-          
-          setImagePreview(compressedImage);
-          setFormData({
-            ...formData,
-            profile_image: compressedImage
-          });
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
-  const handleSubmit = (e) => {
+  React.useEffect(() => {
+    return () => {
+      if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    
+    setSaving(true);
     try {
       if (isEditing) {
-        // Update existing student in local storage
-        console.log('Updating student:', id, formData);
-        studentService.update(id, formData);
+        await studentService.update(id, { ...formData, imageFile });
       } else {
-        // Create new student in local storage
-        console.log('Creating new student:', formData);
-        studentService.create(formData);
+        await studentService.create({ ...formData, imageFile });
       }
-      
-      // Redirect to student list
-      navigate('/');
+      window.location.href = '/dashboard';
     } catch (err) {
-      console.error('Error saving student:', err);
-      
-      // Provide more specific error message for storage quota issues
-      if (err.name === 'QuotaExceededError' || 
-          err.message.includes('quota') || 
-          err.message.includes('storage') ||
-          err.message.includes('exceeded')) {
-        setError(
-          'Storage quota exceeded. The image is too large. ' +
-          'Please try using a smaller image or removing some existing students.'
-        );
-      } else {
-        setError(`Failed to save student: ${err.message}`);
-      }
+      setError(err.message);
+      setSaving(false);
     }
   };
 
-  if (loading) {
-    return <div className="text-center mt-5">Loading student data...</div>;
-  }
+  const card = {
+    background: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #E7E5E4',
+    boxShadow: '0 1px 4px rgba(28,25,23,0.06)',
+    p: 3,
+  };
 
   return (
-    <div>
-      <h2>{isEditing ? 'Edit Student Profile' : 'Add New Student'}</h2>
-      
-      {error && <div className="alert alert-danger mt-3">{error}</div>}
-      
-      <Card className="mt-4">
-        <Card.Body>
-          <Form onSubmit={handleSubmit}>
-            <Form.Group className="mb-3">
-              <Form.Label>Name</Form.Label>
-              <Form.Control
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="Enter student name"
-                required
+    <Box sx={{ maxWidth: 520, mx: 'auto', px: 3, pt: 4, pb: 8 }}>
+      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.75rem', color: '#1C1917', letterSpacing: '-0.025em', mb: 0.5 }}>
+        {isEditing ? 'Edit Student' : 'Add Student'}
+      </Typography>
+      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#78716C', mb: 4 }}>
+        {isEditing ? 'Update the student profile details.' : 'Fill in the details to create a new student profile.'}
+      </Typography>
+
+      {error && (
+        <Box sx={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', p: 2, mb: 3 }}>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#DC2626' }}>{error}</Typography>
+        </Box>
+      )}
+
+      <Box component="form" onSubmit={handleSubmit} sx={card}>
+        {/* Name */}
+        <Box sx={{ mb: 3 }}>
+          <Typography component="label" sx={fieldLabel}>Name</Typography>
+          <TextField
+            fullWidth
+            required
+            placeholder="e.g. Reign"
+            value={formData.name}
+            onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
+            sx={inputSx}
+          />
+        </Box>
+
+        {/* Date of Birth */}
+        <Box sx={{ mb: 3 }}>
+          <Typography component="label" sx={fieldLabel}>Date of Birth</Typography>
+          <TextField
+            fullWidth
+            required
+            type="date"
+            value={formData.date_of_birth}
+            onChange={e => setFormData(f => ({ ...f, date_of_birth: e.target.value }))}
+            InputLabelProps={{ shrink: true }}
+            sx={inputSx}
+            helperText="Required for age-contextual benchmarks"
+          />
+          {formData.date_of_birth && (() => {
+            const age = calculateAge(formData.date_of_birth);
+            const bracket = getAgeBracket(age);
+            const bracketLabel = getAgeBracketLabel(bracket);
+            return age !== null && bracket ? (
+              <Box sx={{ mt: 1.5, px: 2, py: 1, background: '#EBF3EE', borderRadius: '8px', border: '1px solid #3D7A5F22' }}>
+                <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', color: '#3D7A5F', fontWeight: 600 }}>
+                  Age: {age} years old · {bracketLabel}
+                </Typography>
+              </Box>
+            ) : null;
+          })()}
+        </Box>
+
+        {/* Profile Image */}
+        <Box sx={{ mb: 4 }}>
+          <Typography component="label" sx={fieldLabel}>Profile Photo <Box component="span" sx={{ textTransform: 'none', fontWeight: 400, letterSpacing: 0 }}>(optional)</Box></Typography>
+          {imagePreview && (
+            <Box sx={{ mb: 2 }}>
+              <Box
+                component="img"
+                src={imagePreview}
+                alt="Preview"
+                sx={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid #E7E5E4' }}
               />
-            </Form.Group>
-            
-            <Form.Group className="mb-3">
-              <Form.Label>Date of Birth</Form.Label>
-              <Form.Control
-                type="date"
-                name="date_of_birth"
-                value={formData.date_of_birth}
-                onChange={handleInputChange}
-              />
-            </Form.Group>
-            
-            <Form.Group className="mb-4">
-              <Form.Label>Profile Image</Form.Label>
-              {imagePreview && (
-                <div className="mb-3">
-                  <img 
-                    src={imagePreview} 
-                    alt="Profile Preview" 
-                    style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '50%' }} 
-                  />
-                </div>
-              )}
-              <Form.Control
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-              />
-            </Form.Group>
-            
-            <div className="d-flex justify-content-between">
-              <Button variant="secondary" onClick={() => navigate(-1)}>
-                Cancel
-              </Button>
-              <Button variant="primary" type="submit">
-                {isEditing ? 'Update Profile' : 'Create Profile'}
-              </Button>
-            </div>
-          </Form>
-        </Card.Body>
-      </Card>
-    </div>
+            </Box>
+          )}
+          <Box
+            component="input"
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+            sx={{
+              fontFamily: 'Outfit, sans-serif',
+              fontSize: '0.875rem',
+              color: '#78716C',
+              border: '1.5px solid #E7E5E4',
+              borderRadius: '10px',
+              px: 2,
+              py: 1.2,
+              width: '100%',
+              cursor: 'pointer',
+              background: '#FAFAF8',
+              '&::-webkit-file-upload-button': {
+                fontFamily: 'Outfit, sans-serif',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                background: '#EBF3EE',
+                color: '#3D7A5F',
+                border: 'none',
+                borderRadius: '6px',
+                px: 1.5,
+                py: 0.5,
+                mr: 2,
+                cursor: 'pointer',
+              },
+            }}
+          />
+        </Box>
+
+        {/* Actions */}
+        <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
+          <Button
+            type="button"
+            onClick={() => navigate(-1)}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', border: '1.5px solid #E7E5E4', color: '#78716C', borderRadius: '10px', px: 2.5, py: 1, '&:hover': { background: '#F5F3EF', borderColor: '#1C1917', color: '#1C1917' } }}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', background: '#3D7A5F', color: '#fff', borderRadius: '10px', px: 3, py: 1, '&:hover': { background: '#2d5f49' }, '&:active': { transform: 'translateY(1px)' } }}
+          >
+            {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Create Profile'}
+          </Button>
+        </Box>
+      </Box>
+    </Box>
   );
 };
 

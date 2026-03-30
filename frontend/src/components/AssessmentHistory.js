@@ -1,333 +1,320 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Badge, Container, Alert, Modal } from 'react-bootstrap';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { studentService, assessmentService } from '../services/localStorageService';
+import { Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { studentService, assessmentService } from '../services/supabaseService';
 import { formatDate } from '../utils/dateFormatter';
 import { Line } from 'react-chartjs-2';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
+  Chart as ChartJS, CategoryScale, LinearScale,
+  PointElement, LineElement, Title, Tooltip, Legend,
 } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
-// Register ChartJS components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartDataLabels);
+
+const scoreColor = (score) => {
+  if (score >= 8) return '#3D7A5F';
+  if (score >= 5) return '#4A90A4';
+  if (score >= 3) return '#D97706';
+  return '#DC2626';
+};
+
+const pctColor = (pct) => {
+  if (pct >= 80) return '#3D7A5F';
+  if (pct >= 50) return '#4A90A4';
+  if (pct >= 30) return '#D97706';
+  return '#DC2626';
+};
+
+function MiniScoreChip({ label, score }) {
+  const color = scoreColor(score);
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', color: '#78716C', minWidth: 90 }}>
+        {label}
+      </Typography>
+      <Box sx={{ flex: 1, height: 6, borderRadius: '99px', background: '#E7E5E4', overflow: 'hidden', minWidth: 60 }}>
+        <Box sx={{ height: '100%', width: `${score * 10}%`, background: color, borderRadius: '99px', transition: 'width 0.3s ease' }} />
+      </Box>
+      <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.72rem', fontWeight: 600, color, minWidth: 28, textAlign: 'right' }}>
+        {score}
+      </Typography>
+    </Box>
+  );
+}
 
 const AssessmentHistory = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
   const [student, setStudent] = useState(null);
   const [assessments, setAssessments] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showNotesModal, setShowNotesModal] = useState(false);
-  const [currentNotes, setCurrentNotes] = useState('');
-  const [currentAssessmentDate, setCurrentAssessmentDate] = useState('');
+  const [expandedId, setExpandedId] = useState(null);
+  const [notesDialog, setNotesDialog] = useState({ open: false, notes: '', date: '' });
 
   useEffect(() => {
-    try {
-      // Get student details from local storage
-      console.log('Fetching student data from local storage for ID:', id);
-      const studentData = studentService.getById(id);
-      
-      if (!studentData) {
-        setError(`Student with ID ${id} not found`);
-        setLoading(false);
-        return;
-      }
-      
-      setStudent(studentData);
-      
-      // Get all assessments for this student from local storage
-      const assessmentsData = assessmentService.getByStudentId(parseInt(id, 10));
-      
-      // Sort assessments by date (newest first)
-      const sortedAssessments = [...assessmentsData].sort((a, b) => 
-        new Date(b.assessment_date) - new Date(a.assessment_date)
-      );
-      
-      setAssessments(sortedAssessments);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError(`Failed to fetch data: ${err.message}`);
-      setLoading(false);
-    }
+    studentService.getById(id)
+      .then((studentData) => {
+        if (!studentData) { setError('Student not found'); return; }
+        setStudent(studentData);
+        return assessmentService.getByStudentId(id);
+      })
+      .then((data) => {
+        if (data) setAssessments([...data].sort((a, b) => new Date(b.assessment_date) - new Date(a.assessment_date)));
+      })
+      .catch((err) => setError(err.message));
   }, [id]);
 
-  if (loading) {
-    return <div className="text-center mt-5">Loading assessment history...</div>;
-  }
-
   if (error) {
-    return <div className="alert alert-danger mt-3">{error}</div>;
+    return (
+      <Box sx={{ maxWidth: 860, mx: 'auto', px: 3, pt: 4 }}>
+        <Box sx={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', p: 3 }}>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, color: '#DC2626' }}>{error}</Typography>
+        </Box>
+      </Box>
+    );
   }
 
-  if (!student) {
-    return <div className="alert alert-warning mt-3">Student not found.</div>;
-  }
+  if (!student) return null;
 
-  // Prepare chart data
-  const chartData = {
-    labels: [...assessments].reverse().map(assessment => 
-      formatDate(assessment.assessment_date)
-    ),
-    datasets: [
-      {
-        label: 'Overall Capability %',
-        data: [...assessments].reverse().map(assessment => assessment.capability_percentage),
-        fill: false,
-        backgroundColor: 'rgb(75, 192, 192)',
-        borderColor: 'rgba(75, 192, 192, 0.2)',
-      },
-      {
-        label: 'Speaking',
-        data: [...assessments].reverse().map(assessment => assessment.speaking_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(255, 99, 132)',
-        borderColor: 'rgba(255, 99, 132, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Listening',
-        data: [...assessments].reverse().map(assessment => assessment.listening_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(54, 162, 235)',
-        borderColor: 'rgba(54, 162, 235, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Reading',
-        data: [...assessments].reverse().map(assessment => assessment.reading_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(255, 206, 86)',
-        borderColor: 'rgba(255, 206, 86, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Writing',
-        data: [...assessments].reverse().map(assessment => assessment.writing_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(153, 102, 255)',
-        borderColor: 'rgba(153, 102, 255, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Typing',
-        data: [...assessments].reverse().map(assessment => assessment.typing_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(255, 159, 64)',
-        borderColor: 'rgba(255, 159, 64, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Maths',
-        data: [...assessments].reverse().map(assessment => assessment.maths_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(75, 192, 192)',
-        borderColor: 'rgba(75, 192, 192, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Digital Competence',
-        data: [...assessments].reverse().map(assessment => assessment.digital_competence_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(255, 99, 132)',
-        borderColor: 'rgba(255, 99, 132, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Sports',
-        data: [...assessments].reverse().map(assessment => assessment.sports_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(54, 162, 235)',
-        borderColor: 'rgba(54, 162, 235, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Character',
-        data: [...assessments].reverse().map(assessment => assessment.character_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(255, 206, 86)',
-        borderColor: 'rgba(255, 206, 86, 0.2)',
-        hidden: true
-      },
-      {
-        label: 'Hygiene',
-        data: [...assessments].reverse().map(assessment => assessment.hygiene_score * 10),
-        fill: false,
-        backgroundColor: 'rgb(153, 102, 255)',
-        borderColor: 'rgba(153, 102, 255, 0.2)',
-        hidden: true
-      }
-    ]
-  };
+  const reversed = [...assessments].reverse();
+
+  const chartData = assessments.length > 0 ? {
+    labels: reversed.map(a => formatDate(a.assessment_date)),
+    datasets: [{
+      label: 'Capability %',
+      data: reversed.map(a => a.capability_percentage),
+      fill: false,
+      borderColor: '#3D7A5F',
+      backgroundColor: '#3D7A5F',
+      borderWidth: 2.5,
+      pointRadius: 4,
+      pointBackgroundColor: '#3D7A5F',
+      tension: 0.3,
+    }],
+  } : null;
 
   const chartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
+      legend: { display: false },
+      title: { display: false },
+      tooltip: { enabled: false },
+      datalabels: {
         display: true,
-        text: 'Capability Progress Over Time',
+        align: 'top',
+        offset: 6,
+        font: { family: 'JetBrains Mono', size: 11, weight: 600 },
+        color: '#3D7A5F',
+        formatter: (value) => `${Math.round(value)}%`,
       },
     },
     scales: {
       y: {
-        min: 0,
-        max: 100,
-        ticks: {
-          callback: function(value) {
-            return value + '%';
-          }
-        }
-      }
-    }
+        min: 0, max: 100,
+        grid: { color: '#F5F3EF' },
+        ticks: { callback: v => v + '%', font: { family: 'JetBrains Mono', size: 11 }, color: '#78716C' },
+        border: { display: false },
+      },
+      x: {
+        grid: { display: false },
+        ticks: { font: { family: 'Outfit', size: 11 }, color: '#78716C', maxRotation: 30 },
+        border: { display: false },
+      },
+    },
   };
 
-  // Helper function to get badge color based on score
-  const getScoreBadgeColor = (score) => {
-    if (score >= 80) return 'success';
-    if (score >= 50) return 'info';
-    if (score >= 30) return 'warning';
-    return 'danger';
+  const card = {
+    background: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #E7E5E4',
+    boxShadow: '0 1px 4px rgba(28,25,23,0.06)',
+    p: 3,
+    mb: 2.5,
+  };
+
+  const sectionLabel = {
+    fontFamily: 'Outfit, sans-serif',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    letterSpacing: '0.07em',
+    textTransform: 'uppercase',
+    color: '#78716C',
+    mb: 2,
   };
 
   return (
-    <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Assessment History: {student.name}</h2>
-        <div>
-          <Button variant="secondary" className="me-2" onClick={() => navigate(`/students/${id}`)}>
-            Back to Profile
+    <Box sx={{ maxWidth: 860, mx: 'auto', px: 3, pt: 4, pb: 8 }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 4, gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate(`/students/${id}`)}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 500, fontSize: '0.82rem', textTransform: 'none', color: '#78716C', borderRadius: '8px', px: 1.5, py: 0.5, mb: 1, '&:hover': { background: '#F5F3EF', color: '#1C1917' } }}
+          >
+            Back to profile
           </Button>
-          <Link to={`/students/${id}/assessments/new`}>
-            <Button variant="primary">New Assessment</Button>
-          </Link>
-        </div>
-      </div>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.75rem', color: '#1C1917', letterSpacing: '-0.025em', lineHeight: 1.2 }}>
+            {student.name}
+          </Typography>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#78716C', mt: 0.4 }}>
+            {assessments.length} {assessments.length === 1 ? 'assessment' : 'assessments'} on record
+          </Typography>
+        </Box>
+        <Button
+          component={Link}
+          to={`/students/${id}/assessments/new`}
+          startIcon={<AddIcon />}
+          sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', background: '#3D7A5F', color: '#fff', borderRadius: '10px', px: 2.5, py: 1, flexShrink: 0, '&:hover': { background: '#2d5f49' }, '&:active': { transform: 'translateY(1px)' } }}
+        >
+          New Assessment
+        </Button>
+      </Box>
 
       {assessments.length === 0 ? (
-        <div className="alert alert-info">
-          No assessments found for this student. Create a new assessment to get started.
-        </div>
+        <Box sx={{ ...card, textAlign: 'center', py: 6 }}>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '1rem', color: '#1C1917', mb: 0.5 }}>
+            No assessments yet
+          </Typography>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#78716C', mb: 3 }}>
+            Create the first assessment to start the history.
+          </Typography>
+          <Button
+            component={Link}
+            to={`/students/${id}/assessments/new`}
+            startIcon={<AddIcon />}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', background: '#3D7A5F', color: '#fff', borderRadius: '10px', px: 2.5, py: 1, '&:hover': { background: '#2d5f49' } }}
+          >
+            Create Assessment
+          </Button>
+        </Box>
       ) : (
         <>
-          <Card className="mb-4">
-            <Card.Body>
-              <h4 className="mb-3">Progress Chart</h4>
-              <Line data={chartData} options={chartOptions} />
-              <div className="text-muted text-center mt-2">
-                <small>Click on legend items to show/hide specific categories</small>
-              </div>
-            </Card.Body>
-          </Card>
+          {/* Chart */}
+          {chartData && (
+            <Box sx={card}>
+              <Typography sx={sectionLabel}>Progress Over Time</Typography>
+              <Box sx={{ height: 220 }}>
+                <Line data={chartData} options={chartOptions} />
+              </Box>
+            </Box>
+          )}
 
-          <Card>
-            <Card.Body>
-              <h4 className="mb-3">All Assessments</h4>
-              <div className="table-responsive">
-                <Table striped hover>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Overall Score</th>
-                      <th>Speaking</th>
-                      <th>Listening</th>
-                      <th>Reading</th>
-                      <th>Writing</th>
-                      <th>Typing</th>
-                      <th>Maths</th>
-                      <th>Digital</th>
-                      <th>Sports</th>
-                      <th>Character</th>
-                      <th>Hygiene</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {assessments.map((assessment) => (
-                      <tr key={assessment.id}>
-                        <td>{formatDate(assessment.assessment_date)}</td>
-                        <td>
-                          <Badge bg={getScoreBadgeColor(assessment.capability_percentage)}>
-                            {Math.round(assessment.capability_percentage)}%
-                          </Badge>
-                        </td>
-                        <td>{assessment.speaking_score}</td>
-                        <td>{assessment.listening_score}</td>
-                        <td>{assessment.reading_score}</td>
-                        <td>{assessment.writing_score}</td>
-                        <td>{assessment.typing_score}</td>
-                        <td>{assessment.maths_score}</td>
-                        <td>{assessment.digital_competence_score}</td>
-                        <td>{assessment.sports_score}</td>
-                        <td>{assessment.character_score}</td>
-                        <td>{assessment.hygiene_score}</td>
-                        <td>
-                          {assessment.notes ? (
-                            <Button 
-                              variant="link" 
-                              size="sm" 
-                              onClick={() => {
-                                setCurrentNotes(assessment.notes);
-                                setCurrentAssessmentDate(assessment.assessment_date);
-                                setShowNotesModal(true);
-                              }}
-                            >
-                              View
-                            </Button>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </div>
-            </Card.Body>
-          </Card>
+          {/* Timeline */}
+          <Typography sx={{ ...sectionLabel, mb: 2 }}>Assessment Timeline</Typography>
+          {assessments.map((assessment) => {
+            const isExpanded = expandedId === assessment.id;
+            const pct = Math.round(assessment.capability_percentage);
+            const color = pctColor(pct);
+            const scores = [
+              { label: 'Speaking', score: assessment.speaking_score },
+              { label: 'Listening', score: assessment.listening_score },
+              { label: 'Reading', score: assessment.reading_score },
+              { label: 'Writing', score: assessment.writing_score },
+              { label: 'Maths', score: assessment.maths_score },
+              { label: 'Digital', score: assessment.digital_competence_score },
+              { label: 'Typing', score: assessment.typing_score },
+              { label: 'Sports', score: assessment.sports_score },
+              { label: 'Character', score: assessment.character_score },
+              { label: 'Hygiene', score: assessment.hygiene_score },
+            ];
+
+            return (
+              <Box
+                key={assessment.id}
+                sx={{
+                  background: '#FFFFFF',
+                  borderRadius: '16px',
+                  border: '1px solid #E7E5E4',
+                  boxShadow: '0 1px 4px rgba(28,25,23,0.06)',
+                  mb: 2,
+                  overflow: 'hidden',
+                  transition: 'box-shadow 0.15s ease',
+                  '&:hover': { boxShadow: '0 4px 16px rgba(28,25,23,0.10)' },
+                }}
+              >
+                {/* Card header row — always visible */}
+                <Box
+                  sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 3, cursor: 'pointer' }}
+                  onClick={() => setExpandedId(isExpanded ? null : assessment.id)}
+                >
+                  {/* Overall score badge */}
+                  <Box sx={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 52, height: 52, borderRadius: '12px', flexShrink: 0,
+                    background: color + '14', border: `1.5px solid ${color}40`,
+                  }}>
+                    <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: '1rem', color }}>
+                      {pct}%
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.95rem', color: '#1C1917' }}>
+                      {formatDate(assessment.assessment_date)}
+                    </Typography>
+                    <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', color: '#78716C', mt: 0.2 }}>
+                      {scores.filter(s => s.score > 0).map(s => s.label).join(' · ')}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    {assessment.notes && (
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setNotesDialog({ open: true, notes: assessment.notes, date: assessment.assessment_date });
+                        }}
+                        sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', color: '#3D7A5F', borderRadius: '8px', px: 1.5, py: 0.4, minWidth: 0, border: '1px solid #EBF3EE', background: '#EBF3EE', '&:hover': { background: '#d4ebe0' } }}
+                      >
+                        Note
+                      </Button>
+                    )}
+                    <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', color: '#78716C', transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                      ›
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Expanded scores */}
+                {isExpanded && (
+                  <Box sx={{ px: 3, pb: 3, borderTop: '1px solid #F5F3EF' }}>
+                    <Box sx={{ pt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.2 }}>
+                      {scores.map(s => <MiniScoreChip key={s.label} label={s.label} score={s.score} />)}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
         </>
       )}
-      
-      {/* Notes Modal */}
-      <Modal 
-        show={showNotesModal} 
-        onHide={() => setShowNotesModal(false)}
-        centered
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>
-            Assessment Notes - {formatDate(currentAssessmentDate)}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{currentNotes}</div>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowNotesModal(false)}>
+
+      {/* Notes dialog */}
+      <Dialog open={notesDialog.open} onClose={() => setNotesDialog(d => ({ ...d, open: false }))} PaperProps={{ sx: { borderRadius: '16px', p: 1, maxWidth: 460 } }}>
+        <DialogTitle sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.05rem', color: '#1C1917' }}>
+          Notes — {formatDate(notesDialog.date)}
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', color: '#1C1917', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontStyle: 'italic' }}>
+            "{notesDialog.notes}"
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ pb: 2, px: 3 }}>
+          <Button
+            onClick={() => setNotesDialog(d => ({ ...d, open: false }))}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, textTransform: 'none', color: '#78716C', borderRadius: '10px', border: '1.5px solid #E7E5E4', px: 2.5, '&:hover': { background: '#F5F3EF' } }}
+          >
             Close
           </Button>
-        </Modal.Footer>
-      </Modal>
-    </div>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

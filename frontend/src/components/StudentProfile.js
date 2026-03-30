@@ -1,334 +1,309 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Row, Col, Badge, Container, Alert, Modal } from 'react-bootstrap';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { studentService, statisticsService } from '../services/localStorageService';
+import { Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import AddIcon from '@mui/icons-material/Add';
+import HistoryIcon from '@mui/icons-material/History';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { studentService } from '../services/supabaseService';
+import { statisticsService as v2StatisticsService, calculateAge, getAgeBracket, getAgeBracketLabel, capabilityAreasService } from '../services/v2Service';
 import { formatDate } from '../utils/dateFormatter';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js';
 
-// Register ChartJS components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-);
+const scoreColor = (score) => {
+  if (score >= 8) return '#3D7A5F';
+  if (score >= 5) return '#4A90A4';
+  if (score >= 3) return '#D97706';
+  return '#DC2626';
+};
+
+const scoreBg = (score) => scoreColor(score) + '18';
+const scoreBorder = (score) => scoreColor(score) + '44';
+
+function StatBox({ label, value }) {
+  return (
+    <Box sx={{ textAlign: 'center', flex: 1 }}>
+      <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, fontSize: '1.4rem', color: '#1C1917', lineHeight: 1 }}>
+        {value}
+      </Typography>
+      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.72rem', fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.06em', mt: 0.5 }}>
+        {label}
+      </Typography>
+    </Box>
+  );
+}
 
 const StudentProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [statistics, setStatistics] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [areas, setAreas] = useState([]);
   const [error, setError] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    try {
-      // Get student details from local storage
-      console.log('Fetching student data from local storage for ID:', id);
-      const studentData = studentService.getById(id);
-      
-      if (!studentData) {
-        setError(`Student with ID ${id} not found`);
-        setLoading(false);
-        return;
-      }
-      
-      setStudent(studentData);
-      
-      // Get student statistics from local storage
-      const statisticsData = statisticsService.getStudentStatistics(id);
-      setStatistics(statisticsData);
-      
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching student data:', err);
-      setError(`Failed to fetch student data: ${err.message}`);
-      setLoading(false);
-    }
+    Promise.all([
+      studentService.getById(id),
+      v2StatisticsService.getChildStatistics(id),
+      capabilityAreasService.getAll(),
+    ])
+      .then(([studentData, stats, areasData]) => {
+        if (!studentData) { setError('Child not found'); return; }
+        setStudent(studentData);
+        setStatistics(stats);
+        setAreas(areasData);
+      })
+      .catch((err) => setError(err.message));
   }, [id]);
-  
-  const handleDeleteStudent = () => {
-    try {
-      studentService.delete(id);
-      navigate('/');
-    } catch (err) {
-      console.error('Error deleting student:', err);
-      setError(`Failed to delete student: ${err.message}`);
-    }
-  };
 
-  if (loading) {
-    return <div className="text-center mt-5">Loading student profile...</div>;
-  }
+  const handleDelete = () => {
+    setDeleting(true);
+    studentService.delete(id)
+      .then(() => navigate('/dashboard'))
+      .catch((err) => { setError(err.message); setDeleting(false); setShowDeleteDialog(false); });
+  };
 
   if (error) {
-    return <div className="alert alert-danger mt-3">{error}</div>;
+    return (
+      <Box sx={{ maxWidth: 860, mx: 'auto', px: 3, pt: 4 }}>
+        <Box sx={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', p: 3 }}>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, color: '#DC2626' }}>{error}</Typography>
+        </Box>
+      </Box>
+    );
   }
 
-  if (!student) {
-    return <div className="alert alert-warning mt-3">Student not found.</div>;
-  }
+  if (!student) return null;
 
-  // Prepare chart data if statistics are available
-  const chartData = statistics && statistics.trend_data && statistics.trend_data.length > 0 ? {
-    labels: statistics.trend_data.map(item => formatDate(item.date)),
-    datasets: [
-      {
-        label: 'Capability %',
-        data: statistics.trend_data.map(item => item.capability_percentage),
-        fill: false,
-        backgroundColor: 'rgb(75, 192, 192)',
-        borderColor: 'rgba(75, 192, 192, 0.2)',
-      },
-    ],
-  } : null;
+  const age = calculateAge(student.date_of_birth);
+  const bracket = getAgeBracket(age);
+  const bracketLabel = getAgeBracketLabel(bracket);
+  const areaAverages = statistics?.area_averages || {};
+  const percentiles = statistics?.percentiles || {};
+  const hasData = statistics?.checkin_count > 0;
 
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Capability Progress Over Time',
-      },
-    },
-    scales: {
-      y: {
-        min: 0,
-        max: 100,
-        ticks: {
-          callback: function(value) {
-            return value + '%';
-          }
-        }
-      }
-    }
-  };
+  // Map areas to display data
+  const areaDisplayData = areas.map(area => {
+    const areaAvg = areaAverages[area.id];
+    const percentile = percentiles[area.id];
+    return {
+      id: area.id,
+      name: area.name,
+      icon: area.icon,
+      score: areaAvg !== undefined ? areaAvg : null,
+      percentile: percentile !== undefined ? percentile : null,
+    };
+  });
 
-  // Group assessment categories
-  const latestAssessment = statistics?.latest_assessment;
-  
-  const communicationCategories = latestAssessment ? [
-    { name: 'Speaking', score: latestAssessment.speaking_score },
-    { name: 'Listening', score: latestAssessment.listening_score },
-    { name: 'Reading', score: latestAssessment.reading_score },
-    { name: 'Writing', score: latestAssessment.writing_score },
-  ] : [];
-  
-  const thinkingCategories = latestAssessment ? [
-    { name: 'Maths', score: latestAssessment.maths_score },
-    { name: 'Digital Competence', score: latestAssessment.digital_competence_score },
-    { name: 'Typing', score: latestAssessment.typing_score },
-  ] : [];
-  
-  const physicalCategories = latestAssessment ? [
-    { name: 'Sports', score: latestAssessment.sports_score },
-    { name: 'Character', score: latestAssessment.character_score },
-    { name: 'Hygiene', score: latestAssessment.hygiene_score },
-  ] : [];
-
-  // Helper function to render category scores
-  const renderCategoryScores = (categories) => {
-    return categories.map((category, index) => (
-      <div key={index} className="mb-3">
-        <div className="d-flex justify-content-between align-items-center mb-1">
-          <span>{category.name}</span>
-          <Badge bg={getScoreBadgeColor(category.score)}>{category.score}/10</Badge>
-        </div>
-        <div className="progress">
-          <div 
-            className={`progress-bar bg-${getScoreBadgeColor(category.score)}`} 
-            role="progressbar" 
-            style={{ width: `${category.score * 10}%` }}
-            aria-valuenow={category.score} 
-            aria-valuemin="0" 
-            aria-valuemax="10"
-          />
-        </div>
-      </div>
-    ));
-  };
-
-  // Helper function to get badge color based on score
-  const getScoreBadgeColor = (score) => {
-    if (score >= 8) return 'success';
-    if (score >= 5) return 'info';
-    if (score >= 3) return 'warning';
-    return 'danger';
+  const card = {
+    background: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #E7E5E4',
+    boxShadow: '0 1px 4px rgba(28,25,23,0.06)',
+    p: 3,
+    mb: 2.5,
   };
 
   return (
-    <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Student Profile</h2>
-        <div>
-          <Link to={`/students/${id}/edit`} className="me-2">
-            <Button variant="outline-primary">Edit Profile</Button>
-          </Link>
-          <Link to={`/students/${id}/assessments/new`} className="me-2">
-            <Button variant="primary">New Assessment</Button>
-          </Link>
-          <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
-            Delete Student
-          </Button>
-        </div>
-      </div>
-
-      <Row>
-        <Col md={4}>
-          <Card className="mb-4">
-            <Card.Body>
-              <div className="text-center mb-3">
-                <div 
-                  className="rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center mx-auto mb-3" 
-                  style={{ width: '100px', height: '100px', overflow: 'hidden' }}
-                >
-                  {student.profile_image ? (
-                    <img 
-                      src={student.profile_image} 
-                      alt={student.name} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                    />
-                  ) : (
-                    <span className="fs-1">
-                      {student.name.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <h4>{student.name}</h4>
-                <p className="text-muted">
-                  Date of Birth: {student.date_of_birth ? formatDate(student.date_of_birth) : 'Not specified'}
-                </p>
-              </div>
-
-              <div className="text-center">
-                <div className="mb-3">
-                  <h5>Current Score</h5>
-                  <div className="display-4 fw-bold">
-                    {latestAssessment ? `${Math.round(latestAssessment.capability_percentage)}%` : 'N/A'}
-                  </div>
-                </div>
-
-                <div className="mb-3">
-                  <h5>Average Score</h5>
-                  <div className="h4">
-                    {statistics?.average_capability ? `${Math.round(statistics.average_capability)}%` : 'N/A'}
-                  </div>
-                </div>
-
-                <div>
-                  <h5>Assessments</h5>
-                  <div className="h4">
-                    {statistics?.assessment_count || 0}
-                  </div>
-                </div>
-              </div>
-            </Card.Body>
-          </Card>
-
-          <Link to={`/students/${id}/assessments`} className="w-100">
-            <Button variant="outline-secondary" className="w-100 mb-4">
-              View Assessment History
-            </Button>
-          </Link>
-        </Col>
-
-        <Col md={8}>
-          {latestAssessment ? (
-            <>
-              <Card className="mb-4">
-                <Card.Body>
-                  <h4 className="mb-3">Latest Assessment</h4>
-                  <p className="text-muted">
-                    Date: {formatDate(latestAssessment.assessment_date)}
-                  </p>
-                  
-                  <Row>
-                    <Col md={6}>
-                      <h5 className="mb-3">Communication & Expression</h5>
-                      {renderCategoryScores(communicationCategories)}
-                    </Col>
-                    <Col md={6}>
-                      <h5 className="mb-3">Thinking & Tech</h5>
-                      {renderCategoryScores(thinkingCategories)}
-                    </Col>
-                  </Row>
-                  
-                  <Row className="mt-3">
-                    <Col md={6}>
-                      <h5 className="mb-3">Physical & Character</h5>
-                      {renderCategoryScores(physicalCategories)}
-                    </Col>
-                    <Col md={6}>
-                      {latestAssessment.notes && (
-                        <>
-                          <h5 className="mb-3">Notes</h5>
-                          <p>{latestAssessment.notes}</p>
-                        </>
-                      )}
-                    </Col>
-                  </Row>
-                </Card.Body>
-              </Card>
-
-              {chartData && (
-                <Card>
-                  <Card.Body>
-                    <h4 className="mb-3">Progress Chart</h4>
-                    <Line data={chartData} options={chartOptions} />
-                  </Card.Body>
-                </Card>
+    <Box sx={{ maxWidth: 860, mx: 'auto', px: 3, pt: 4, pb: 8 }}>
+      {/* Page header */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* Avatar */}
+          <Box sx={{
+            width: 56, height: 56, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+            background: student.profile_image_url ? 'transparent' : '#EBF3EE',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid #E7E5E4',
+          }}>
+            {student.profile_image_url ? (
+              <Box component="img" src={student.profile_image_url} alt={student.name}
+                sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.3rem', color: '#3D7A5F' }}>
+                {student.name.charAt(0).toUpperCase()}
+              </Typography>
+            )}
+          </Box>
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
+              <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.75rem', color: '#1C1917', letterSpacing: '-0.025em', lineHeight: 1.2 }}>
+                {student.name}
+              </Typography>
+              {age !== null && (
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 1.5, py: 0.3, borderRadius: '99px', background: '#EBF3EE', border: '1px solid #3D7A5F44' }}>
+                  <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', fontWeight: 700, color: '#3D7A5F' }}>
+                    {age} yrs
+                  </Typography>
+                </Box>
               )}
-            </>
-          ) : (
-            <Card>
-              <Card.Body className="text-center p-5">
-                <h4 className="mb-3">No Assessments Yet</h4>
-                <p>This student doesn't have any assessments yet.</p>
-                <Link to={`/students/${id}/assessments/new`}>
-                  <Button variant="primary">Create First Assessment</Button>
-                </Link>
-              </Card.Body>
-            </Card>
+            </Box>
+            {student.date_of_birth && (
+              <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', color: '#78716C', mt: 0.4 }}>
+                Born {formatDate(student.date_of_birth)}{bracketLabel ? ` · ${bracketLabel}` : ''}
+              </Typography>
+            )}
+          </Box>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button
+            component={Link}
+            to={`/students/${id}/edit`}
+            startIcon={<EditOutlinedIcon />}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', border: '1.5px solid #E7E5E4', color: '#78716C', borderRadius: '10px', px: 2, py: 0.9, '&:hover': { background: '#F5F3EF', borderColor: '#1C1917', color: '#1C1917' } }}
+          >
+            Edit
+          </Button>
+          <Button
+            component={Link}
+            to={`/students/${id}/assessments`}
+            startIcon={<HistoryIcon />}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', border: '1.5px solid #E7E5E4', color: '#78716C', borderRadius: '10px', px: 2, py: 0.9, '&:hover': { background: '#F5F3EF', borderColor: '#1C1917', color: '#1C1917' } }}
+          >
+            History
+          </Button>
+          <Button
+            component={Link}
+            to={`/students/${id}/checkin`}
+            startIcon={<AddIcon />}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', background: '#3D7A5F', color: '#fff', borderRadius: '10px', px: 2.5, py: 0.9, '&:hover': { background: '#2d5f49' }, '&:active': { transform: 'translateY(1px)' } }}
+          >
+            New Check-in
+          </Button>
+        </Box>
+      </Box>
+
+      {/* Stats row */}
+      <Box sx={{ ...card, display: 'flex', gap: 1 }}>
+        <StatBox label="Current Score" value={hasData ? `${statistics.overall_score_percentage}%` : '—'} />
+        <Box sx={{ width: '1px', background: '#E7E5E4', mx: 1 }} />
+        <StatBox label="Your Average" value={hasData ? `${statistics.overall_average_percentage}%` : '—'} />
+        <Box sx={{ width: '1px', background: '#E7E5E4', mx: 1 }} />
+        <StatBox
+          label="Ranking"
+          value={hasData && statistics.overall_percentile != null ? `Top ${statistics.overall_percentile}%` : '—'}
+        />
+        <Box sx={{ width: '1px', background: '#E7E5E4', mx: 1 }} />
+        <StatBox label="Check-ins" value={statistics?.checkin_count ?? 0} />
+      </Box>
+
+      {hasData ? (
+        <>
+          {/* Latest check-in date */}
+          {statistics?.latest_checkin && (
+            <Box sx={{ mb: 1.5 }}>
+              <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', color: '#78716C' }}>
+                Latest check-in — {formatDate(statistics.latest_checkin.checkin_date)}
+              </Typography>
+            </Box>
           )}
-        </Col>
-      </Row>
-      
-      {/* Delete Confirmation Modal */}
-      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Confirm Deletion</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <p>Are you sure you want to delete {student?.name}'s profile?</p>
-          <p className="text-danger"><strong>Warning:</strong> This will permanently delete the student profile and all associated assessment data. This action cannot be undone.</p>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+
+          {/* 8 Capability Areas */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5, mb: 2.5 }}>
+            {areaDisplayData.map(area => (
+              <Box key={area.id} sx={card}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography sx={{ fontSize: '1.2rem' }}>{area.icon}</Typography>
+                    <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.95rem', color: '#1C1917' }}>
+                      {area.name}
+                    </Typography>
+                  </Box>
+                  {area.percentile !== null && !percentiles.insufficient_data && (
+                    <Box sx={{ px: 1.5, py: 0.3, borderRadius: '99px', background: '#EBF3EE', border: '1px solid #3D7A5F44' }}>
+                      <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem', fontWeight: 600, color: '#3D7A5F' }}>
+                        Top {Math.max(1, Math.round(100 - area.percentile))}%
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+                {area.score !== null ? (
+                  <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.6 }}>
+                      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.75rem', color: '#78716C' }}>
+                        Your Score
+                      </Typography>
+                      <Box sx={{
+                        display: 'inline-flex', alignItems: 'center',
+                        px: 1.2, py: 0.2, borderRadius: '99px',
+                        background: scoreBg(area.score), border: `1px solid ${scoreBorder(area.score)}`,
+                      }}>
+                        <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', fontWeight: 600, color: scoreColor(area.score) }}>
+                          {Math.round(area.score)}/10
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ height: 8, borderRadius: '99px', background: '#E7E5E4', overflow: 'hidden' }}>
+                      <Box sx={{ height: '100%', width: `${area.score * 10}%`, borderRadius: '99px', background: scoreColor(area.score), transition: 'width 0.3s ease' }} />
+                    </Box>
+                  </>
+                ) : (
+                  <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', color: '#A8A29E', fontStyle: 'italic' }}>
+                    No data yet
+                  </Typography>
+                )}
+              </Box>
+            ))}
+          </Box>
+        </>
+      ) : (
+        <Box sx={{ ...card, textAlign: 'center', py: 6 }}>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '1rem', color: '#1C1917', mb: 0.5 }}>
+            No check-ins yet
+          </Typography>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#78716C', mb: 3 }}>
+            Complete the first check-in to start tracking {student.name}'s capabilities.
+          </Typography>
+          <Button
+            component={Link}
+            to={`/students/${id}/checkin`}
+            startIcon={<AddIcon />}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', background: '#3D7A5F', color: '#fff', borderRadius: '10px', px: 2.5, py: 1, '&:hover': { background: '#2d5f49' } }}
+          >
+            Start First Check-in
+          </Button>
+        </Box>
+      )}
+
+      {/* Danger zone */}
+      <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid #E7E5E4' }}>
+        <Button
+          startIcon={<DeleteOutlineIcon />}
+          onClick={() => setShowDeleteDialog(true)}
+          sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 500, fontSize: '0.82rem', textTransform: 'none', color: '#DC2626', borderRadius: '10px', px: 2, py: 0.8, '&:hover': { background: '#FEF2F2' } }}
+        >
+          Delete student
+        </Button>
+      </Box>
+
+      {/* Delete dialog */}
+      <Dialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}>
+        <DialogTitle sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.1rem', color: '#1C1917' }}>
+          Delete {student.name}?
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', color: '#78716C' }}>
+            This will permanently delete their profile and all assessment data. This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ pb: 2, px: 3, gap: 1 }}>
+          <Button
+            onClick={() => setShowDeleteDialog(false)}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, textTransform: 'none', color: '#78716C', borderRadius: '10px', border: '1.5px solid #E7E5E4', px: 2.5, '&:hover': { background: '#F5F3EF' } }}
+          >
             Cancel
           </Button>
-          <Button variant="danger" onClick={handleDeleteStudent}>
-            Delete Student
+          <Button
+            onClick={handleDelete}
+            disabled={deleting}
+            sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, textTransform: 'none', background: '#DC2626', color: '#fff', borderRadius: '10px', px: 2.5, '&:hover': { background: '#B91C1C' }, '&.Mui-disabled': { background: '#FECACA', color: '#fff' } }}
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
           </Button>
-        </Modal.Footer>
-      </Modal>
-    </div>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 
