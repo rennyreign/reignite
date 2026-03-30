@@ -105,43 +105,34 @@ export const checkinsService = {
   },
 
   create: async ({ childId, scores, generalNote, durationSeconds }) => {
-    // Create the check-in record
-    const { data: checkin, error: checkinError } = await supabase
-      .from('v2_checkins')
-      .insert([{
-        child_id: childId,
-        general_note: generalNote,
-        duration_seconds: durationSeconds,
-      }])
-      .select()
-      .single();
-    
-    if (checkinError) throw new Error(checkinError.message);
+    // Atomic insert: check-in + scores in a single database transaction
+    const { data: checkinId, error } = await supabase.rpc('create_checkin_with_scores', {
+      p_child_id: childId,
+      p_general_note: generalNote || null,
+      p_duration_seconds: durationSeconds,
+      p_scores: scores.map(s => ({
+        sub_capability_id: s.sub_capability_id,
+        score: s.score,
+        note: s.note || null,
+      })),
+    });
 
-    // Insert all scores
-    const scoreRecords = scores.map(s => ({
-      checkin_id: checkin.id,
-      sub_capability_id: s.sub_capability_id,
-      score: s.score,
-      note: s.note,
-    }));
+    if (error) throw new Error(error.message);
 
-    const { error: scoresError } = await supabase
-      .from('v2_checkin_scores')
-      .insert(scoreRecords);
-    
-    if (scoresError) throw new Error(scoresError.message);
-
-    // Check for bias flags
-    const flagResult = await checkBiasFlags(checkin.id, childId, scores, durationSeconds);
-    if (flagResult.shouldFlag) {
-      await supabase
-        .from('v2_checkins')
-        .update({ is_flagged: true, flag_reason: flagResult.reason })
-        .eq('id', checkin.id);
+    // Check for bias flags (post-transaction, non-critical)
+    try {
+      const flagResult = await checkBiasFlags(checkinId, childId, scores, durationSeconds);
+      if (flagResult.shouldFlag) {
+        await supabase
+          .from('v2_checkins')
+          .update({ is_flagged: true, flag_reason: flagResult.reason })
+          .eq('id', checkinId);
+      }
+    } catch (flagError) {
+      console.warn('Bias detection failed (non-critical):', flagError.message);
     }
 
-    return checkin;
+    return { id: checkinId };
   },
 
   delete: async (id) => {
