@@ -6,13 +6,30 @@ const AuthCallback = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate('/dashboard', { replace: true });
-      } else {
-        navigate('/login', { replace: true });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!session) {
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        // Check if user has any children to distinguish new vs returning
+        const { data: children } = await supabase
+          .from('students')
+          .select('id')
+          .limit(1);
+
+        if (!children || children.length === 0) {
+          navigate('/onboarding', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
+
+        subscription.unsubscribe();
       }
-    });
+    );
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   return null;
