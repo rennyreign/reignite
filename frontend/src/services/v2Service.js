@@ -319,13 +319,13 @@ export const statisticsService = {
       : 0;
     const overall_average_percentage = Math.round((overallAvg / 10) * 100);
 
-    // Calculate overall percentile as "top X%" (100 - average percentile)
+    // Store raw average percentile rank (0–100, where 100 = better than all peers)
     let overall_percentile = null;
     if (percentiles && !percentiles.insufficient_data) {
       const pctValues = Object.values(percentiles).filter(v => typeof v === 'number');
       if (pctValues.length > 0) {
         const avgPercentile = pctValues.reduce((s, v) => s + v, 0) / pctValues.length;
-        overall_percentile = Math.max(1, Math.round(100 - avgPercentile));
+        overall_percentile = Math.round(avgPercentile);
       }
     }
 

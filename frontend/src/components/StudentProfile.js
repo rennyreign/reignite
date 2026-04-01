@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip } from '@mui/material';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import HistoryIcon from '@mui/icons-material/History';
@@ -20,15 +20,28 @@ const scoreColor = (score) => {
 const scoreBg = (score) => scoreColor(score) + '18';
 const scoreBorder = (score) => scoreColor(score) + '44';
 
-function StatBox({ label, value }) {
+const rankLabel = (percentile) => {
+  if (percentile === null || percentile === undefined) return '—';
+  if (percentile >= 50) return `Top ${Math.max(1, 100 - percentile)}%`;
+  return `Bottom ${Math.max(1, percentile)}%`;
+};
+
+function StatBox({ label, value, tooltip }) {
+  const labelEl = (
+    <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.72rem', fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.06em', mt: 0.5, borderBottom: tooltip ? '1px dashed #C7C3BF' : 'none', display: 'inline-block', cursor: tooltip ? 'default' : 'auto' }}>
+      {label}
+    </Typography>
+  );
   return (
     <Box sx={{ textAlign: 'center', flex: 1 }}>
       <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, fontSize: '1.4rem', color: '#1C1917', lineHeight: 1 }}>
         {value}
       </Typography>
-      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.72rem', fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.06em', mt: 0.5 }}>
-        {label}
-      </Typography>
+      {tooltip ? (
+        <Tooltip title={tooltip} placement="bottom" arrow enterTouchDelay={0}>
+          {labelEl}
+        </Tooltip>
+      ) : labelEl}
     </Box>
   );
 }
@@ -182,8 +195,9 @@ const StudentProfile = () => {
         <StatBox label="Your Average" value={hasData ? `${statistics.overall_average_percentage}%` : '—'} />
         <Box sx={{ width: '1px', background: '#E7E5E4', mx: 1 }} />
         <StatBox
-          label="Ranking"
-          value={hasData && statistics.overall_percentile != null ? `Top ${statistics.overall_percentile}%` : '—'}
+          label="vs. Age Group"
+          tooltip={`Compared to other children in the ${bracketLabel || 'same'} age group`}
+          value={hasData ? rankLabel(statistics.overall_percentile) : '—'}
         />
         <Box sx={{ width: '1px', background: '#E7E5E4', mx: 1 }} />
         <StatBox label="Check-ins" value={statistics?.checkin_count ?? 0} />
@@ -214,9 +228,9 @@ const StudentProfile = () => {
                     </Typography>
                   </Box>
                   {area.percentile !== null && !percentiles.insufficient_data && (
-                    <Box sx={{ px: 1.5, py: 0.3, borderRadius: '99px', background: '#EBF3EE', border: '1px solid #3D7A5F44' }}>
-                      <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem', fontWeight: 600, color: '#3D7A5F' }}>
-                        Top {Math.max(1, Math.round(100 - area.percentile))}%
+                    <Box sx={{ px: 1.5, py: 0.3, borderRadius: '99px', background: area.percentile >= 50 ? '#EBF3EE' : '#FEF3E2', border: `1px solid ${area.percentile >= 50 ? '#3D7A5F44' : '#D9770644'}` }}>
+                      <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem', fontWeight: 600, color: area.percentile >= 50 ? '#3D7A5F' : '#D97706' }}>
+                        {rankLabel(area.percentile)}
                       </Typography>
                     </Box>
                   )}

@@ -38,6 +38,7 @@ const AddEditStudent = () => {
   const [formData, setFormData] = useState({ name: '', date_of_birth: '', profile_image_url: null });
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
+  const [imageLoading, setImageLoading] = useState(false);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -55,12 +56,54 @@ const AddEditStudent = () => {
     }
   }, [id, isEditing]);
 
-  const handleImageChange = (e) => {
+  const compressImage = (file) => new Promise((resolve) => {
+    const fallback = () => resolve({ file, url: URL.createObjectURL(file) });
+    const reader = new FileReader();
+    reader.onerror = fallback;
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = fallback;
+      img.onload = () => {
+        const MAX = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          if (!blob) { fallback(); return; }
+          resolve({
+            file: new File([blob], file.name, { type: 'image/jpeg' }),
+            url: URL.createObjectURL(blob),
+          });
+        }, 'image/jpeg', 0.82);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const compressRequestRef = React.useRef(0);
+
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    const requestId = ++compressRequestRef.current;
     if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    setImageLoading(true);
+    const { file: compressed, url } = await compressImage(file);
+    if (requestId !== compressRequestRef.current) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    setImageFile(compressed);
+    setImagePreview(url);
+    setImageLoading(false);
   };
 
   React.useEffect(() => {
@@ -153,47 +196,54 @@ const AddEditStudent = () => {
         {/* Profile Image */}
         <Box sx={{ mb: 4 }}>
           <Typography component="label" sx={fieldLabel}>Profile Photo <Box component="span" sx={{ textTransform: 'none', fontWeight: 400, letterSpacing: 0 }}>(optional)</Box></Typography>
-          {imagePreview && (
-            <Box sx={{ mb: 2 }}>
+          <Box
+            component="label"
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 2,
+              border: '1.5px dashed #E7E5E4', borderRadius: '12px',
+              p: 2, cursor: 'pointer', background: '#FAFAF8',
+              transition: 'border-color 0.15s',
+              '&:hover': { borderColor: '#3D7A5F' },
+            }}
+          >
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              style={{ display: 'none' }}
+            />
+            {imageLoading ? (
+              <Box sx={{
+                width: 52, height: 52, borderRadius: '50%', flexShrink: 0,
+                background: '#EBF3EE', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Typography sx={{ fontSize: '0.7rem', color: '#3D7A5F', fontFamily: 'Outfit' }}>...</Typography>
+              </Box>
+            ) : imagePreview ? (
               <Box
                 component="img"
                 src={imagePreview}
                 alt="Preview"
-                sx={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid #E7E5E4' }}
+                sx={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #E7E5E4' }}
               />
+            ) : (
+              <Box sx={{
+                width: 52, height: 52, borderRadius: '50%', flexShrink: 0,
+                background: '#EBF3EE', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.3rem',
+              }}>
+                📷
+              </Box>
+            )}
+            <Box>
+              <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.85rem', color: '#1C1917' }}>
+                {imagePreview ? 'Change photo' : 'Choose photo'}
+              </Typography>
+              <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.75rem', color: '#A8A29E' }}>
+                {imageLoading ? 'Processing…' : 'JPG, PNG or HEIC · auto-compressed'}
+              </Typography>
             </Box>
-          )}
-          <Box
-            component="input"
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-            sx={{
-              fontFamily: 'Outfit, sans-serif',
-              fontSize: '0.875rem',
-              color: '#78716C',
-              border: '1.5px solid #E7E5E4',
-              borderRadius: '10px',
-              px: 2,
-              py: 1.2,
-              width: '100%',
-              cursor: 'pointer',
-              background: '#FAFAF8',
-              '&::-webkit-file-upload-button': {
-                fontFamily: 'Outfit, sans-serif',
-                fontWeight: 600,
-                fontSize: '0.8rem',
-                background: '#EBF3EE',
-                color: '#3D7A5F',
-                border: 'none',
-                borderRadius: '6px',
-                px: 1.5,
-                py: 0.5,
-                mr: 2,
-                cursor: 'pointer',
-              },
-            }}
-          />
+          </Box>
         </Box>
 
         {/* Actions */}
