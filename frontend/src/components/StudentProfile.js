@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip } from '@mui/material';
+import { motion } from 'framer-motion';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import HistoryIcon from '@mui/icons-material/History';
@@ -119,8 +120,23 @@ const StudentProfile = () => {
     mb: 2.5,
   };
 
+  const cardVariants = {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.06 } },
+  };
+  const cardItem = {
+    hidden: { opacity: 0, y: 14 },
+    show:   { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 260, damping: 28 } },
+  };
+
   return (
-    <Box sx={{ maxWidth: 860, mx: 'auto', px: 3, pt: 4, pb: 8 }}>
+    <Box
+      component={motion.div}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+      sx={{ maxWidth: 860, mx: 'auto', px: 3, pt: 4, pb: 8 }}
+    >
       {/* Page header */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, gap: 2, flexWrap: 'wrap' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -215,9 +231,15 @@ const StudentProfile = () => {
           )}
 
           {/* 8 Capability Areas */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5, mb: 2.5 }}>
+          <Box
+            component={motion.div}
+            variants={cardVariants}
+            initial="hidden"
+            animate="show"
+            sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5, mb: 2.5 }}
+          >
             {areaDisplayData.map(area => (
-              <Box key={area.id} sx={card}>
+              <Box component={motion.div} key={area.id} variants={cardItem} sx={card}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -252,7 +274,12 @@ const StudentProfile = () => {
                       </Box>
                     </Box>
                     <Box sx={{ height: 8, borderRadius: '99px', background: '#E7E5E4', overflow: 'hidden' }}>
-                      <Box sx={{ height: '100%', width: `${area.score * 10}%`, borderRadius: '99px', background: scoreColor(area.score), transition: 'width 0.3s ease' }} />
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(area.score * 10, 100)}%` }}
+                        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+                        style={{ height: '100%', background: scoreColor(area.score) }}
+                      />
                     </Box>
                   </>
                 ) : (

@@ -3,7 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { studentService, assessmentService } from '../services/supabaseService';
+import { studentService } from '../services/supabaseService';
+import { checkinsService } from '../services/v2Service';
 import { formatDate } from '../utils/dateFormatter';
 import { Line } from 'react-chartjs-2';
 import {
@@ -28,18 +29,46 @@ const pctColor = (pct) => {
   return '#DC2626';
 };
 
+function getAreaAverages(checkin) {
+  if (!checkin.scores || !checkin.scores.length) return [];
+  const areaMap = {};
+  checkin.scores.forEach(s => {
+    const area = s.sub_capability?.area;
+    const score = typeof s.score === 'number' && !isNaN(s.score) ? s.score : null;
+    if (!area || score === null) return;
+    if (!areaMap[area.id]) areaMap[area.id] = { name: area.name, total: 0, count: 0 };
+    areaMap[area.id].total += score;
+    areaMap[area.id].count += 1;
+  });
+  return Object.values(areaMap)
+    .filter(a => a.count > 0)
+    .map(a => ({
+      name: a.name,
+      avg: Math.round(a.total / a.count),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getOverallPct(checkin) {
+  const areas = getAreaAverages(checkin);
+  if (!areas.length) return 0;
+  const avg = areas.reduce((s, a) => s + a.avg, 0) / areas.length;
+  return Math.round((avg / 10) * 100);
+}
+
 function MiniScoreChip({ label, score }) {
-  const color = scoreColor(score);
+  const clamped = Math.min(10, Math.max(0, score ?? 0));
+  const color = scoreColor(clamped);
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', color: '#78716C', minWidth: 90 }}>
+      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', color: '#78716C', minWidth: 110 }}>
         {label}
       </Typography>
       <Box sx={{ flex: 1, height: 6, borderRadius: '99px', background: '#E7E5E4', overflow: 'hidden', minWidth: 60 }}>
-        <Box sx={{ height: '100%', width: `${score * 10}%`, background: color, borderRadius: '99px', transition: 'width 0.3s ease' }} />
+        <Box sx={{ height: '100%', width: `${clamped * 10}%`, background: color, borderRadius: '99px', transition: 'width 0.3s ease' }} />
       </Box>
-      <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.72rem', fontWeight: 600, color, minWidth: 28, textAlign: 'right' }}>
-        {score}
+      <Typography sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.72rem', fontWeight: 600, color, minWidth: 32, textAlign: 'right' }}>
+        {clamped}/10
       </Typography>
     </Box>
   );
@@ -49,7 +78,7 @@ const AssessmentHistory = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [student, setStudent] = useState(null);
-  const [assessments, setAssessments] = useState([]);
+  const [checkins, setCheckins] = useState([]);
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [notesDialog, setNotesDialog] = useState({ open: false, notes: '', date: '' });
@@ -57,12 +86,15 @@ const AssessmentHistory = () => {
   useEffect(() => {
     studentService.getById(id)
       .then((studentData) => {
-        if (!studentData) { setError('Student not found'); return; }
+        if (!studentData) { setError('Child not found'); return; }
         setStudent(studentData);
-        return assessmentService.getByStudentId(id);
+        return checkinsService.getByChildId(id);
       })
       .then((data) => {
-        if (data) setAssessments([...data].sort((a, b) => new Date(b.assessment_date) - new Date(a.assessment_date)));
+        if (data) {
+          const sorted = [...data].sort((a, b) => new Date(b.checkin_date) - new Date(a.checkin_date));
+          setCheckins(sorted);
+        }
       })
       .catch((err) => setError(err.message));
   }, [id]);
@@ -79,13 +111,13 @@ const AssessmentHistory = () => {
 
   if (!student) return null;
 
-  const reversed = [...assessments].reverse();
+  const chronological = [...checkins].reverse();
 
-  const chartData = assessments.length > 0 ? {
-    labels: reversed.map(a => formatDate(a.assessment_date)),
+  const chartData = checkins.length > 0 ? {
+    labels: chronological.map(c => formatDate(c.checkin_date)),
     datasets: [{
       label: 'Capability %',
-      data: reversed.map(a => a.capability_percentage),
+      data: chronological.map(c => getOverallPct(c)),
       fill: false,
       borderColor: '#3D7A5F',
       backgroundColor: '#3D7A5F',
@@ -162,34 +194,34 @@ const AssessmentHistory = () => {
             {student.name}
           </Typography>
           <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#78716C', mt: 0.4 }}>
-            {assessments.length} {assessments.length === 1 ? 'assessment' : 'assessments'} on record
+            {checkins.length} {checkins.length === 1 ? 'check-in' : 'check-ins'} on record
           </Typography>
         </Box>
         <Button
           component={Link}
-          to={`/students/${id}/assessments/new`}
+          to={`/students/${id}/checkin`}
           startIcon={<AddIcon />}
           sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', background: '#3D7A5F', color: '#fff', borderRadius: '10px', px: 2.5, py: 1, flexShrink: 0, '&:hover': { background: '#2d5f49' }, '&:active': { transform: 'translateY(1px)' } }}
         >
-          New Assessment
+          New Check-in
         </Button>
       </Box>
 
-      {assessments.length === 0 ? (
+      {checkins.length === 0 ? (
         <Box sx={{ ...card, textAlign: 'center', py: 6 }}>
           <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '1rem', color: '#1C1917', mb: 0.5 }}>
-            No assessments yet
+            No check-ins yet
           </Typography>
           <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#78716C', mb: 3 }}>
-            Create the first assessment to start the history.
+            Complete the first check-in to start the history.
           </Typography>
           <Button
             component={Link}
-            to={`/students/${id}/assessments/new`}
+            to={`/students/${id}/checkin`}
             startIcon={<AddIcon />}
             sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', background: '#3D7A5F', color: '#fff', borderRadius: '10px', px: 2.5, py: 1, '&:hover': { background: '#2d5f49' } }}
           >
-            Create Assessment
+            Start First Check-in
           </Button>
         </Box>
       ) : (
@@ -205,27 +237,17 @@ const AssessmentHistory = () => {
           )}
 
           {/* Timeline */}
-          <Typography sx={{ ...sectionLabel, mb: 2 }}>Assessment Timeline</Typography>
-          {assessments.map((assessment) => {
-            const isExpanded = expandedId === assessment.id;
-            const pct = Math.round(assessment.capability_percentage);
+          <Typography sx={{ ...sectionLabel, mb: 2 }}>Check-in History</Typography>
+          {checkins.map((checkin) => {
+            const isExpanded = expandedId === checkin.id;
+            const pct = getOverallPct(checkin);
             const color = pctColor(pct);
-            const scores = [
-              { label: 'Speaking', score: assessment.speaking_score },
-              { label: 'Listening', score: assessment.listening_score },
-              { label: 'Reading', score: assessment.reading_score },
-              { label: 'Writing', score: assessment.writing_score },
-              { label: 'Maths', score: assessment.maths_score },
-              { label: 'Digital', score: assessment.digital_competence_score },
-              { label: 'Typing', score: assessment.typing_score },
-              { label: 'Sports', score: assessment.sports_score },
-              { label: 'Character', score: assessment.character_score },
-              { label: 'Hygiene', score: assessment.hygiene_score },
-            ];
+            const areaAverages = getAreaAverages(checkin);
+            const areaNames = areaAverages.map(a => a.name).join(' · ');
 
             return (
               <Box
-                key={assessment.id}
+                key={checkin.id}
                 sx={{
                   background: '#FFFFFF',
                   borderRadius: '16px',
@@ -237,12 +259,11 @@ const AssessmentHistory = () => {
                   '&:hover': { boxShadow: '0 4px 16px rgba(28,25,23,0.10)' },
                 }}
               >
-                {/* Card header row — always visible */}
+                {/* Card header row */}
                 <Box
                   sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 3, cursor: 'pointer' }}
-                  onClick={() => setExpandedId(isExpanded ? null : assessment.id)}
+                  onClick={() => setExpandedId(isExpanded ? null : checkin.id)}
                 >
-                  {/* Overall score badge */}
                   <Box sx={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     width: 52, height: 52, borderRadius: '12px', flexShrink: 0,
@@ -255,25 +276,32 @@ const AssessmentHistory = () => {
 
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.95rem', color: '#1C1917' }}>
-                      {formatDate(assessment.assessment_date)}
+                      {formatDate(checkin.checkin_date)}
                     </Typography>
-                    <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', color: '#78716C', mt: 0.2 }}>
-                      {scores.filter(s => s.score > 0).map(s => s.label).join(' · ')}
+                    <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', color: '#78716C', mt: 0.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {areaNames || 'No area data'}
                     </Typography>
                   </Box>
 
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    {assessment.notes && (
+                    {checkin.general_note && (
                       <Button
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setNotesDialog({ open: true, notes: assessment.notes, date: assessment.assessment_date });
+                          setNotesDialog({ open: true, notes: checkin.general_note, date: checkin.checkin_date });
                         }}
                         sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', color: '#3D7A5F', borderRadius: '8px', px: 1.5, py: 0.4, minWidth: 0, border: '1px solid #EBF3EE', background: '#EBF3EE', '&:hover': { background: '#d4ebe0' } }}
                       >
                         Note
                       </Button>
+                    )}
+                    {checkin.is_flagged && (
+                      <Box sx={{ px: 1.2, py: 0.3, borderRadius: '8px', background: '#FEF3E2', border: '1px solid #D9770644' }}>
+                        <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.68rem', fontWeight: 600, color: '#D97706' }}>
+                          Flagged
+                        </Typography>
+                      </Box>
                     )}
                     <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', color: '#78716C', transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
                       ›
@@ -281,12 +309,20 @@ const AssessmentHistory = () => {
                   </Box>
                 </Box>
 
-                {/* Expanded scores */}
+                {/* Expanded: area averages */}
                 {isExpanded && (
                   <Box sx={{ px: 3, pb: 3, borderTop: '1px solid #F5F3EF' }}>
-                    <Box sx={{ pt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.2 }}>
-                      {scores.map(s => <MiniScoreChip key={s.label} label={s.label} score={s.score} />)}
-                    </Box>
+                    {areaAverages.length > 0 ? (
+                      <Box sx={{ pt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.2 }}>
+                        {areaAverages.map(a => (
+                          <MiniScoreChip key={a.name} label={a.name} score={a.avg} />
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', color: '#A8A29E', fontStyle: 'italic', pt: 2.5 }}>
+                        No scored areas recorded for this check-in.
+                      </Typography>
+                    )}
                   </Box>
                 )}
               </Box>

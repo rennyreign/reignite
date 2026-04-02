@@ -4,6 +4,7 @@ import { Box, Typography, Button, TextField } from '@mui/material';
 import { studentService } from '../services/supabaseService';
 import { calculateAge, getAgeBracket, getAgeBracketLabel } from '../services/v2Service';
 import { useAuth } from '../contexts/AuthContext';
+import { Camera } from 'lucide-react';
 
 const fieldLabel = {
   fontFamily: 'Outfit, sans-serif',
@@ -230,9 +231,8 @@ const AddEditStudent = () => {
               <Box sx={{
                 width: 52, height: 52, borderRadius: '50%', flexShrink: 0,
                 background: '#EBF3EE', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '1.3rem',
               }}>
-                📷
+                <Camera size={22} strokeWidth={1.5} color="#3D7A5F" />
               </Box>
             )}
             <Box>

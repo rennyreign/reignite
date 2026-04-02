@@ -80,3 +80,57 @@
 /* Chart container */
 .chart-container { position: relative; height: 300px; width: 100%; }
 
+/* ── Motion Primitives ───────────────────────────────────────── */
+
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.ct-skeleton {
+  background: linear-gradient(90deg, #ECEAE6 25%, #F5F3EF 50%, #ECEAE6 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+.ct-fade-in-up {
+  animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ct-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Stagger children delays */
+.ct-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.ct-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.ct-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.ct-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.ct-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.ct-stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+/* Tactile press feedback */
+.ct-pressable {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  cursor: pointer;
+}
+.ct-pressable:active {
+  transform: scale(0.98) translateY(1px);
+}
+

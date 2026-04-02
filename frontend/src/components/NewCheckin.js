@@ -389,16 +389,16 @@ function ScoreSlider({ subCapability, value, onChange, note, onNoteChange }) {
       </Box>
 
       {/* Slider */}
-      <Box sx={{ position: 'relative', height: 28, display: 'flex', alignItems: 'center', mb: 0.5 }}>
+      <Box sx={{ position: 'relative', height: 28, display: 'flex', alignItems: 'center' }}>
         <Box sx={{ position: 'absolute', width: '100%', height: 8, borderRadius: '99px', background: '#E7E5E4', zIndex: 1 }} />
-        <Box sx={{ position: 'absolute', width: `${pct}%`, height: 8, borderRadius: '99px', background: color, zIndex: 2, transition: 'width 0.1s ease, background 0.2s ease' }} />
+        <Box sx={{ position: 'absolute', width: `calc(${pct}% - ${score * 2}px + 10px)`, height: 8, borderRadius: '99px 0 0 99px', background: color, zIndex: 2, transition: 'width 0.05s linear, background 0.2s ease' }} />
         <Box
           component="input"
           type="range"
-          value={value}
+          value={score}
           min="0"
           max="10"
-          step="0.01"
+          step="1"
           onChange={onChange}
           sx={{
             position: 'relative', zIndex: 3, width: '100%', height: 28,
@@ -416,6 +416,22 @@ function ScoreSlider({ subCapability, value, onChange, note, onNoteChange }) {
             },
           }}
         />
+      </Box>
+      {/* Tick marks — one per integer position */}
+      <Box sx={{ position: 'relative', height: 6, mb: 0.5 }}>
+        {Array.from({ length: 11 }, (_, i) => (
+          <Box key={i} sx={{
+            position: 'absolute',
+            width: '1.5px',
+            height: '100%',
+            borderRadius: '1px',
+            background: i <= score ? color : '#D6D3D1',
+            opacity: 0.55,
+            left: `calc(${i * 10}% - ${i * 2}px + 10px)`,
+            transform: 'translateX(-50%)',
+            pointerEvents: 'none',
+          }} />
+        ))}
       </Box>
 
       {/* Criteria text */}

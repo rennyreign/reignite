@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Box, Typography, Button } from '@mui/material';
+import { motion } from 'framer-motion';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { Users } from 'lucide-react';
 import { studentService } from '../services/supabaseService';
 import { calculateAge, getAgeBracket, getAgeBracketLabel } from '../services/v2Service';
 import { formatDate } from '../utils/dateFormatter';
@@ -72,7 +74,28 @@ const StudentList = () => {
       });
   }, [navigate]);
 
-  if (loading && !error) return null;
+  if (loading && !error) {
+    return (
+      <Box sx={SS.page}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 4 }}>
+          <Box>
+            <Box className="ct-skeleton" sx={{ width: 160, height: 28, mb: 1 }} />
+            <Box className="ct-skeleton" sx={{ width: 100, height: 16 }} />
+          </Box>
+          <Box className="ct-skeleton" sx={{ width: 110, height: 40, borderRadius: '10px' }} />
+        </Box>
+        {[1, 2, 3].map((i) => (
+          <Box key={i} sx={{ ...SS.card, cursor: 'default', mb: 2 }}>
+            <Box className="ct-skeleton" sx={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0 }} />
+            <Box sx={{ flex: 1 }}>
+              <Box className="ct-skeleton" sx={{ width: '45%', height: 16, mb: 1 }} />
+              <Box className="ct-skeleton" sx={{ width: '65%', height: 13 }} />
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    );
+  }
 
   if (error) {
     return (
@@ -89,21 +112,31 @@ const StudentList = () => {
     );
   }
 
+  const listVariants = {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.07 } },
+  };
+  const itemVariants = {
+    hidden: { opacity: 0, y: 14 },
+    show:   { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 260, damping: 28 } },
+  };
+
   return (
     <Box sx={SS.page}>
       {/* Page header */}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 4 }}>
+      <Box
+        component={motion.div}
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+        sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 4 }}
+      >
         <Box>
-          <Typography
-            sx={{
-              fontFamily: 'Outfit, sans-serif',
-              fontWeight: 700,
-              fontSize: '1.75rem',
-              color: '#1C1917',
-              letterSpacing: '-0.025em',
-              lineHeight: 1.2,
-            }}
-          >
+          <Typography sx={{
+            fontFamily: 'Outfit, sans-serif', fontWeight: 700,
+            fontSize: '1.75rem', color: '#1C1917',
+            letterSpacing: '-0.025em', lineHeight: 1.2,
+          }}>
             Your Children
           </Typography>
           <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', color: '#78716C', mt: 0.5 }}>
@@ -114,19 +147,13 @@ const StudentList = () => {
           component={Link}
           to="/students/new"
           startIcon={<AddIcon />}
+          className="ct-pressable"
           sx={{
-            fontFamily: 'Outfit, sans-serif',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            textTransform: 'none',
-            background: '#3D7A5F',
-            color: '#fff',
-            borderRadius: '10px',
-            px: 2.5,
-            py: 1.1,
-            flexShrink: 0,
+            fontFamily: 'Outfit, sans-serif', fontWeight: 600,
+            fontSize: '0.875rem', textTransform: 'none',
+            background: '#3D7A5F', color: '#fff',
+            borderRadius: '10px', px: 2.5, py: 1.1, flexShrink: 0,
             '&:hover': { background: '#2d5f49' },
-            '&:active': { transform: 'translateY(1px)' },
           }}
         >
           Add Child
@@ -136,102 +163,92 @@ const StudentList = () => {
       {/* Empty state */}
       {students.length === 0 && (
         <Box
+          component={motion.div}
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 240, damping: 28 }}
           sx={{
-            background: '#FFFFFF',
-            borderRadius: '16px',
-            border: '1px dashed #E7E5E4',
-            p: 6,
-            textAlign: 'center',
+            background: '#FFFFFF', borderRadius: '16px',
+            border: '1px dashed #D6D3D1', p: 6, textAlign: 'center',
           }}
         >
-          <Box
-            sx={{
-              width: 56,
-              height: 56,
-              borderRadius: '50%',
-              background: '#EBF3EE',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              mx: 'auto',
-              mb: 2,
-              fontSize: '1.5rem',
-            }}
-          >
-            🎓
+          <Box sx={{
+            width: 52, height: 52, borderRadius: '14px',
+            background: '#EBF3EE',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            mx: 'auto', mb: 2,
+          }}>
+            <Users size={24} strokeWidth={1.5} color="#3D7A5F" />
           </Box>
           <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '1rem', color: '#1C1917', mb: 0.5 }}>
-            No students yet
+            No children yet
           </Typography>
           <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', color: '#78716C', mb: 3 }}>
-            Add a student to start tracking their capabilities.
+            Add a child to start tracking their capabilities.
           </Typography>
           <Button
             component={Link}
             to="/students/new"
             startIcon={<AddIcon />}
+            className="ct-pressable"
             sx={{
-              fontFamily: 'Outfit, sans-serif',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              textTransform: 'none',
-              border: '1.5px solid #1C1917',
-              color: '#1C1917',
-              borderRadius: '10px',
-              px: 2.5,
-              py: 1,
+              fontFamily: 'Outfit, sans-serif', fontWeight: 600,
+              fontSize: '0.875rem', textTransform: 'none',
+              border: '1.5px solid #1C1917', color: '#1C1917',
+              borderRadius: '10px', px: 2.5, py: 1,
               '&:hover': { background: '#F5F3EF' },
             }}
           >
-            Add First Student
+            Add First Child
           </Button>
         </Box>
       )}
 
-      {/* Student cards */}
-      {students.map((student) => (
-        <Box key={student.id} component={Link} to={`/students/${student.id}`} sx={SS.card}>
-          {/* Avatar */}
-          <Box sx={SS.avatar(!!student.profile_image_url)}>
-            {student.profile_image_url ? (
-              <Box
-                component="img"
-                src={student.profile_image_url}
-                alt={student.name}
-                sx={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-              />
-            ) : (
-              student.name.charAt(0).toUpperCase()
-            )}
-          </Box>
+      {/* Student cards — staggered entrance */}
+      <Box
+        component={motion.div}
+        variants={listVariants}
+        initial="hidden"
+        animate="show"
+      >
+        {students.map((student) => (
+          <motion.div key={student.id} variants={itemVariants}>
+            <Box component={Link} to={`/students/${student.id}`} sx={SS.card} className="ct-pressable">
+              <Box sx={SS.avatar(!!student.profile_image_url)}>
+                {student.profile_image_url ? (
+                  <Box
+                    component="img"
+                    src={student.profile_image_url}
+                    alt={student.name}
+                    sx={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  student.name.charAt(0).toUpperCase()
+                )}
+              </Box>
 
-          {/* Info */}
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography
-              sx={{
-                fontFamily: 'Outfit, sans-serif',
-                fontWeight: 600,
-                fontSize: '1rem',
-                color: '#1C1917',
-                lineHeight: 1.3,
-              }}
-            >
-              {student.name}
-            </Typography>
-            <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', color: '#78716C', mt: 0.2 }}>
-              {student.date_of_birth ? (() => {
-                const age = calculateAge(student.date_of_birth);
-                const bracket = getAgeBracket(age);
-                const bracketLabel = getAgeBracketLabel(bracket);
-                return age !== null && bracket ? `${age} years old · ${bracketLabel}` : `Born ${formatDate(student.date_of_birth)}`;
-              })() : 'No date of birth'}
-            </Typography>
-          </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{
+                  fontFamily: 'Outfit, sans-serif', fontWeight: 600,
+                  fontSize: '1rem', color: '#1C1917', lineHeight: 1.3,
+                }}>
+                  {student.name}
+                </Typography>
+                <Typography sx={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', color: '#78716C', mt: 0.2 }}>
+                  {student.date_of_birth ? (() => {
+                    const age = calculateAge(student.date_of_birth);
+                    const bracket = getAgeBracket(age);
+                    const bracketLabel = getAgeBracketLabel(bracket);
+                    return age !== null && bracket ? `${age} years old · ${bracketLabel}` : `Born ${formatDate(student.date_of_birth)}`;
+                  })() : 'No date of birth'}
+                </Typography>
+              </Box>
 
-          {/* Arrow */}
-          <ArrowForwardIcon sx={{ color: '#E7E5E4', fontSize: 20, flexShrink: 0 }} />
-        </Box>
-      ))}
+              <ArrowForwardIcon sx={{ color: '#D6D3D1', fontSize: 18, flexShrink: 0 }} />
+            </Box>
+          </motion.div>
+        ))}
+      </Box>
     </Box>
   );
 };

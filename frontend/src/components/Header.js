@@ -72,25 +72,47 @@ const Header = () => {
             </ListItemButton>
           </ListItem>
         ))}
-        <ListItem disablePadding sx={{ mt: 1 }}>
-          <ListItemButton
-            component={Link}
-            to="/students/new"
-            sx={{
-              borderRadius: '10px',
-              background: '#3D7A5F',
-              color: '#fff',
-              fontFamily: 'Outfit, sans-serif',
-              fontWeight: 600,
-              '&:hover': { background: '#2d5f49' },
-            }}
-          >
-            <ListItemText
-              primary="New Assessment"
-              primaryTypographyProps={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', fontWeight: 600 }}
-            />
-          </ListItemButton>
-        </ListItem>
+        {user ? (
+          <ListItem disablePadding sx={{ mt: 1 }}>
+            <ListItemButton
+              component={Link}
+              to="/students/new"
+              sx={{
+                borderRadius: '10px',
+                background: '#3D7A5F',
+                color: '#fff',
+                fontFamily: 'Outfit, sans-serif',
+                fontWeight: 600,
+                '&:hover': { background: '#2d5f49' },
+              }}
+            >
+              <ListItemText
+                primary="Add Child"
+                primaryTypographyProps={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', fontWeight: 600 }}
+              />
+            </ListItemButton>
+          </ListItem>
+        ) : (
+          <ListItem disablePadding sx={{ mt: 1 }}>
+            <ListItemButton
+              component={Link}
+              to="/login"
+              sx={{
+                borderRadius: '10px',
+                background: '#3D7A5F',
+                color: '#fff',
+                fontFamily: 'Outfit, sans-serif',
+                fontWeight: 600,
+                '&:hover': { background: '#2d5f49' },
+              }}
+            >
+              <ListItemText
+                primary="Sign In"
+                primaryTypographyProps={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', fontWeight: 600 }}
+              />
+            </ListItemButton>
+          </ListItem>
+        )}
       </List>
     </Box>
   );
