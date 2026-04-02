@@ -354,12 +354,12 @@ const HomePage = () => {
                 </Box>
                 <Box sx={{
                   order: i % 2 !== 0 ? { md: 0 } : 0,
-                  display: { xs: 'none', md: 'block' },
+                  display: 'block',
                   borderRadius: '16px',
                   overflow: 'hidden',
                   border: '1px solid #E7E5E4',
                   boxShadow: '0 2px 12px rgba(28,25,23,0.07)',
-                  height: 280,
+                  height: { xs: 200, md: 280 },
                 }}>
                   <Box
                     component="img"
